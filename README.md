@@ -132,7 +132,7 @@ Logs for the service are available in c:\Windows\Logs\s2dmon.log". For more info
 PSService.ps1 documentation.
 
 Once the service is setup for first time you should start seeing data in OMS after 15-20 minutes.
-Restart your browser if you do not see data after that time. All the data is in `Type=S2D_CL' log.
+Restart your browser if you do not see data after that time. All the data is in `Type=S2D_CL` log.
 
 If you need to remove the service use:
 
