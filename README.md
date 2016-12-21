@@ -237,6 +237,11 @@ As the S2DMon service is running as PowerShell script it is not well optimized o
 On the Cluster Name owner where the code is executed for gathering all the data the registered value
 CPUUsage from Get-StorageHealthReport will be higher than what the actual usage is.
 
+### Issue 3
+
+If you do not have any Faults no Fault data will be send to OMS which will result in errors when
+the S2D is opened because the Fault related custom fields will not be created.
+
 ## Updates
 
 ### Update 1
