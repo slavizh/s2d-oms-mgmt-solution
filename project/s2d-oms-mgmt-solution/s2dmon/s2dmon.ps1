@@ -960,7 +960,7 @@ if ($Service) {                 # Run the service
     ###### Example that wakes up and logs a line every 10 sec: ######
     # Start a periodic timer
     $timerName = "Sample service timer"
-    $period = 10 # seconds
+    $period = 60 # seconds
     $timer = new-object System.Timers.Timer
     $timer.Interval = ($period * 1000) # Milliseconds
     $timer.AutoReset = $true # Make it fire repeatedly
@@ -1090,7 +1090,7 @@ if ($Service) {                 # Run the service
             $table  = @()
             foreach ($s2dNode in $s2dNodes)
             {
-                $s2dreport = Get-StorageNode -Name $s2dNode.Name | Get-StorageHealthReport
+                $s2dreport = Get-StorageNode -Name $s2dNode.Name | Get-StorageHealthReport -Count 1
                 
                 foreach ($s2drecord in $s2dreport.itemValue.records)
                 {
@@ -1161,7 +1161,7 @@ if ($Service) {                 # Run the service
                   $OperationalStatus = $volume.OperationalStatus
                   $HealthStatus = $volume.HealthStatus
 
-                  $s2dreport = Get-Volume -FileSystemLabel $VolumeLabel | Get-StorageHealthReport
+                  $s2dreport = Get-Volume -FileSystemLabel $VolumeLabel | Get-StorageHealthReport -Count 1
                   foreach ($s2drecord in $s2dreport.itemValue.records)
                   {
                       if ($s2drecord.Units -eq 0)

@@ -1,5 +1,7 @@
 # S2D Management Solution for OMS
 
+Check [Updates](#updates) section if you have applied previous version.
+
 [![Deploy to Azure](http://azuredeploy.net/deploybutton.png)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fslavizh%2Fs2d-oms-mgmt-solution%2Fmaster%2Fazuredeploy.json) 
 <a href="http://armviz.io/#/?load=https%3A%2F%2Fraw.githubusercontent.com%2Fslavizh%2Fs2d-oms-mgmt-solution%2Fmaster%2Fazuredeploy.json" target="_blank">
     <img src="http://armviz.io/visualizebutton.png"/>
@@ -10,7 +12,7 @@ The solution relies on [Failover Cluster Health Service API](https://technet.mic
 Metrics and Faults are gathered from S2D clusters and send to OMS. The solution consists of 2 parts:
 
 - S2DMon service that sends data to OMS Log Analytics Workspace. More info below.
-- OMS Solution with visualization for the data in OMS Log ANalytics. More info below.
+- OMS Solution with visualization for the data in OMS Log Analytics. More info below.
 
 When deployed the solution is viewable in both OMS portal and Azure.
 
@@ -28,10 +30,10 @@ When deployed the solution is viewable in both OMS portal and Azure.
 ## S2DMon Service
 
 The S2DMon service is basically a PowerShell script that runs as a service. The code for getting
-data from S2D Cluster and sending it to OMS runs every 10 seconds. The engine for running that code
+data from S2D Cluster and sending it to OMS runs every 60 seconds. The engine for running that code
 is forked version from [PSService.ps1](https://github.com/JFLarvoire/SysToolsLib/blob/master/PowerShell/PSService.ps1)
 created by Jean-François Larvoire. Full article of the PSService.ps1 can be found [here](https://msdn.microsoft.com/en-us/magazine/mt703436.aspx?f=255&MSPPError=-2147217396).
-The service sends the following information every 10 seconds:
+The service sends the following information every 60 seconds:
 
 - Metrics
   - StorageSubSystem
@@ -201,9 +203,12 @@ Please report any issues to [GitHub](https://github.com/slavizh/s2d-oms-mgmt-sol
 
 ## Known issues
 
+### Issue 1
+
 Currently the script may end in unhandled exception where the service is running but the script
 itself is not. The error you will see in the log is `s2dmon.ps1 -Service # Error at line 3207: Not enough storage is available to complete this operation. `.
 Additionally in Applicaiton log the following error can be seen as well:
+
 ```
 Application: powershell.exe
 Framework Version: v4.0.30319
@@ -225,3 +230,37 @@ Exception Info: System.OutOfMemoryException
 ```
 
 I am investigating this to find a resolution.
+
+### Issue 2
+
+As the S2DMon service is running as PowerShell script it is not well optimized on resource usage.
+On the Cluster Name owner where the code is executed for gathering all the data the registered value
+CPUUsage from Get-StorageHealthReport will be higher than what the actual usage is.
+
+## Updates
+
+### Update 1
+
+Changes:
+
+- I've made a couple of changes to the S2DMon Service. Increased the time for the script running cycle
+ from 10 seconds to 60. 10 seconds was too intensive and caused multiple PowerShell threads to run
+ at the same time. The service just couldn't keep up. Hopefully that will fix known issue 1.
+- Renamed the service to S2DMon in order to use that name in services.msc as well.
+- When getting S2D metrics I've set count to 1
+
+How to update to new version:
+
+- Stop and remove service
+```powershell
+C:\temp\s2dmon.ps1 -Stop
+C:\temp\s2dmon.ps1 -Remove
+```
+
+- Copy the new file (s2dmon.ps1) to the folder
+- Setup and start the service again
+
+```powershell
+C:\temp\s2dmon.ps1 -Setup -OMSWorkspaceCreds (Get-Credential)
+C:\temp\s2dmon.ps1 -Start
+```
