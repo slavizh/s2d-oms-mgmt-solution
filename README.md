@@ -2,6 +2,8 @@
 
 Check [Updates](#updates) section if you have applied previous version.
 
+Do not forget to check [Known issues](#known-issues) section.
+
 [![Deploy to Azure](http://azuredeploy.net/deploybutton.png)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fslavizh%2Fs2d-oms-mgmt-solution%2Fmaster%2Fazuredeploy.json) 
 <a href="http://armviz.io/#/?load=https%3A%2F%2Fraw.githubusercontent.com%2Fslavizh%2Fs2d-oms-mgmt-solution%2Fmaster%2Fazuredeploy.json" target="_blank">
     <img src="http://armviz.io/visualizebutton.png"/>
@@ -231,11 +233,30 @@ Exception Info: System.OutOfMemoryException
 
 I am investigating this to find a resolution.
 
+Workaround: Create a scheduled tasks on each node to restart the service every hour.
+
+```powershell
+$action = New-ScheduledTaskAction -Execute 'Powershell.exe' `
+                                  -Argument '-NoProfile -WindowStyle Hidden -command "& {Restart-Service s2dmon}"'
+$trigger =  New-ScheduledTaskTrigger -RepetitionInterval (New-TimeSpan -Minutes 60) `
+                                     -At (get-date) `
+                                     -Once
+$STPrin = New-ScheduledTaskPrincipal -UserId "NT AUTHORITY\SYSTEM" `
+                                     -LogonType ServiceAccount `
+                                     -RunLevel Highest
+Register-ScheduledTask -Action $action `
+                       -Trigger $trigger `
+                       -TaskName "S2DMonRestart" `
+                       -Description "Restart S2DMon service hourly" `
+                       -Principal $STPrin
+```
+
 ### Issue 2
 
 As the S2DMon service is running as PowerShell script it is not well optimized on resource usage.
 On the Cluster Name owner where the code is executed for gathering all the data the registered value
-CPUUsage from Get-StorageHealthReport will be higher than what the actual usage is.
+CPUUsage from Get-StorageHealthReport will be higher than what the actual usage is. Seems Update 2
+fixed this issue and now CPUUsage metric for the active node is ok.
 
 ### Issue 3
 
