@@ -196,7 +196,7 @@ $scriptFullName = $argv0.fullname       # Ex: C:\Temp\PSService.ps1
 
 # Global settings
 $serviceName = $script                  # A one-word name used for net start commands
-$serviceDisplayName = "OMSS2DMon"
+$serviceDisplayName = "S2DMon"
 $ServiceDescription = "Service for sending S2D data to OMS"
 $pipeName = "Service_$serviceName"      # Named pipe name. Used for sending messages to the service task
 # $installDir = "${ENV:ProgramFiles}\$serviceName" # Where to install the service files
