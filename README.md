@@ -269,3 +269,19 @@ C:\temp\s2dmon.ps1 -Remove
 C:\temp\s2dmon.ps1 -Setup -OMSWorkspaceCreds (Get-Credential)
 C:\temp\s2dmon.ps1 -Start
 ```
+
+### Update 2
+
+- In my env one the node where the service is gathering data I was getting metrics for that node
+ twice. I think this is issue caued by Get-StorageNode cmdlet which returns the node on which you
+ execute the command twice. I've implemented a logic for checking double records and removing
+ duplicate records. This might be the cause for Issue 2.
+
+To update to new version reinstall the service on all nodes:
+
+```powershell
+C:\temp\s2dmon.ps1 -Stop
+C:\temp\s2dmon.ps1 -Remove
+C:\temp\s2dmon.ps1 -Setup -OMSWorkspaceCreds (Get-Credential)
+C:\temp\s2dmon.ps1 -Start
+```

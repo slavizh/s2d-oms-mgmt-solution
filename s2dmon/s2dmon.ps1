@@ -1027,70 +1027,19 @@ if ($Service) {                 # Run the service
             $ClusterName = ((gwmi -class "MSCluster_Cluster" -namespace "root\mscluster" | select -ExpandProperty Name) + "." + $domainfqdn).ToUpper()
             #endregion
           
-          
-            #region Get and Send S2D cluster Data to OMS
-            $s2dreport = Get-StorageSubSystem Cluster*  | Get-StorageHealthReport
-            $NowTime = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
-            $table  = @()
-            foreach ($s2drecord in $s2dreport.itemValue.records)
-            {
-              
-              if ($s2drecord.Units -eq 0)
-              {
-                  $UnitType = "Bytes"
-              }
-              if ($s2drecord.Units -eq 1)
-              {
-                  $UnitType = "BytesPerSecond"
-              }
-              if ($s2drecord.Units -eq 2)
-              {
-                  $UnitType = "CountPerSecond"
-              }
-              if ($s2drecord.Units -eq 3)
-              {
-                  $UnitType = "Seconds"
-              }
-              if ($s2drecord.Units -eq 4)
-              {
-                  $UnitType = "Percentage"
-              }
-              
-              $MetricValueName = $s2drecord.Name + "Value"
-              $sx = New-Object PSObject -Property @{
-                
-                Timestamp = $NowTime
-                MetricLevel = "Cluster";
-                MetricName = $s2drecord.Name;
-                $MetricValueName = $s2drecord.Value;
-                UnitType = $UnitType;
-                ClusterName = $ClusterName
-              } 
-              $table  += $sx 
-            }
-            
-            if($table)
-            {
-                # Convert to JSON
-                $jsonTable = $table | ConvertTo-Json -Depth 5
-
-                #Send to OMS
-                Send-OMSAPIIngestionFile -customerId $OMSCredsFromFiles.UserName `
-                                         -sharedKey $OMSCredsFromFiles.GetNetworkCredential().password `
-                                         -body $jsonTable `
-                                         -logType $logType `
-                                         -TimeStampField $Timestampfield
-
-            }
-            #endregion  
-
             #region Get and Send S2D Node Data to OMS
             $NowTime = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
             $s2dNodes = Get-StorageNode
+            $nodescount = $s2dNodes.GetEnumerator() | Group-Object nAME | ? { $_.Count -gt 1 }
+            if($nodescount)
+            {
+                $s2dNodes = $s2dNodes | select -Skip 1
+            }
             $table  = @()
             foreach ($s2dNode in $s2dNodes)
             {
-                $s2dreport = Get-StorageNode -Name $s2dNode.Name | Get-StorageHealthReport -Count 1
+                
+                $s2dreport = $s2dNode | Get-StorageHealthReport -Count 1
                 
                 foreach ($s2drecord in $s2dreport.itemValue.records)
                 {
@@ -1147,6 +1096,62 @@ if ($Service) {                 # Run the service
 
             }
             #endregion
+                      
+            #region Get and Send S2D cluster Data to OMS
+            $s2dreport = Get-StorageSubSystem Cluster*  | Get-StorageHealthReport
+            $NowTime = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
+            $table  = @()
+            foreach ($s2drecord in $s2dreport.itemValue.records)
+            {
+              
+              if ($s2drecord.Units -eq 0)
+              {
+                  $UnitType = "Bytes"
+              }
+              if ($s2drecord.Units -eq 1)
+              {
+                  $UnitType = "BytesPerSecond"
+              }
+              if ($s2drecord.Units -eq 2)
+              {
+                  $UnitType = "CountPerSecond"
+              }
+              if ($s2drecord.Units -eq 3)
+              {
+                  $UnitType = "Seconds"
+              }
+              if ($s2drecord.Units -eq 4)
+              {
+                  $UnitType = "Percentage"
+              }
+              
+              $MetricValueName = $s2drecord.Name + "Value"
+              $sx = New-Object PSObject -Property @{
+                
+                Timestamp = $NowTime
+                MetricLevel = "Cluster";
+                MetricName = $s2drecord.Name;
+                $MetricValueName = $s2drecord.Value;
+                UnitType = $UnitType;
+                ClusterName = $ClusterName
+              } 
+              $table  += $sx 
+            }
+            
+            if($table)
+            {
+                # Convert to JSON
+                $jsonTable = $table | ConvertTo-Json -Depth 5
+
+                #Send to OMS
+                Send-OMSAPIIngestionFile -customerId $OMSCredsFromFiles.UserName `
+                                         -sharedKey $OMSCredsFromFiles.GetNetworkCredential().password `
+                                         -body $jsonTable `
+                                         -logType $logType `
+                                         -TimeStampField $Timestampfield
+
+            }
+            #endregion  
 
             #region Get and Send S2D Volume Data to OMS
             $volumes = Get-Volume | where {$_.FileSystem -eq "CSVFS" }
