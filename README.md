@@ -198,3 +198,30 @@ When S2D ata appears in OMS it is located in S2D_CL type.
 ## Notes
 
 Please report any issues to [GitHub](https://github.com/slavizh/s2d-oms-mgmt-solution).
+
+## Known issues
+
+Currently the script may end in unhandled exception where the service is running but the script
+itself is not. The error you will see in the log is `s2dmon.ps1 -Service # Error at line 3207: Not enough storage is available to complete this operation. `.
+Additionally in Applicaiton log the following error can be seen as well:
+```
+Application: powershell.exe
+Framework Version: v4.0.30319
+Description: The process was terminated due to an unhandled exception.
+Exception Info: System.OutOfMemoryException
+   at System.Text.StringBuilder.ToString()
+   at System.Management.Automation.Tracing.PSEtwLogProvider.LogPipelineExecutionDetailEvent(System.Management.Automation.LogContext, System.Collections.Generic.List`1<System.String>)
+   at System.Management.Automation.MshLog.LogPipelineExecutionDetailEvent(System.Management.Automation.ExecutionContext, System.Collections.Generic.List`1<System.String>, System.Management.Automation.InvocationInfo)
+   at System.Management.Automation.Internal.PipelineProcessor.LogToEventLog()
+   at System.Management.Automation.Internal.PipelineProcessor.DisposeCommands()
+   at System.Management.Automation.Internal.PipelineProcessor.SynchronousExecuteEnumerate(System.Object)
+   at System.Management.Automation.Runspaces.LocalPipeline.InvokeHelper()
+   at System.Management.Automation.Runspaces.LocalPipeline.InvokeThreadProc()
+   at System.Management.Automation.Runspaces.PipelineThread.WorkerProc()
+   at System.Threading.ExecutionContext.RunInternal(System.Threading.ExecutionContext, System.Threading.ContextCallback, System.Object, Boolean)
+   at System.Threading.ExecutionContext.Run(System.Threading.ExecutionContext, System.Threading.ContextCallback, System.Object, Boolean)
+   at System.Threading.ExecutionContext.Run(System.Threading.ExecutionContext, System.Threading.ContextCallback, System.Object)
+   at System.Threading.ThreadHelper.ThreadStart()
+```
+
+I am investigating this to find a resolution.
