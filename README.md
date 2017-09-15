@@ -1,8 +1,12 @@
 # S2D Management Solution for OMS
 
+Version: 2.0.0.0
+
 Check [Updates](#updates) section if you have applied previous version.
 
 Do not forget to check [Known issues](#known-issues) section.
+
+>**Note**: This version of the solution works only with upgraded Log Analytics workspace to the new query language. More info [here](https://docs.microsoft.com/en-us/azure/log-analytics/log-analytics-log-search-upgrade).
 
 [![Deploy to Azure](http://azuredeploy.net/deploybutton.png)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fslavizh%2Fs2d-oms-mgmt-solution%2Fmaster%2Fazuredeploy.json) 
 <a href="http://armviz.io/#/?load=https%3A%2F%2Fraw.githubusercontent.com%2Fslavizh%2Fs2d-oms-mgmt-solution%2Fmaster%2Fazuredeploy.json" target="_blank">
@@ -16,7 +20,7 @@ Metrics and Faults are gathered from S2D clusters and send to OMS. The solution 
 - S2DMon service that sends data to OMS Log Analytics Workspace. More info below.
 - OMS Solution with visualization for the data in OMS Log Analytics. More info below.
 
-When deployed the solution is viewable in both OMS portal and Azure.
+When deployed the solution is visible in both OMS portal and Azure.
 
 ![S2D Solution](images/s2d-1.png "S2D Solution")
 
@@ -25,9 +29,10 @@ When deployed the solution is viewable in both OMS portal and Azure.
 ## Prerequisites
 
 - **S2D Cluster**
-- **OMS Log ANalytics Workspace**
+- **OMS Log Analytics Workspace**
 - **OMSIngestionAPI module installed on S2D Nodes**
 - **S2DMon service installed on S2D Nodes**
+- **Cumulative Update September 2017 for Windows Server installed on all S2D nodes**
 
 ## S2DMon Service
 
@@ -130,7 +135,27 @@ After the service is setup execute the following command to start the service:
 C:\temp\s2dmon.ps1 -Start
 ```
 
-Management of the service is also possible with services.msc
+Management of the service is also possible with services.msc.
+
+>**Note**: When you start to send data to OMS Log Analytics workspace it might take up to an hour until the data appears in OMS portal.
+
+Create a scheduled tasks on each node to restart the service every hour.
+
+```powershell
+$action = New-ScheduledTaskAction -Execute 'Powershell.exe' `
+                                  -Argument '-NoProfile -WindowStyle Hidden -command "& {Restart-Service s2dmon}"'
+$trigger =  New-ScheduledTaskTrigger -RepetitionInterval (New-TimeSpan -Minutes 60) `
+                                     -At (get-date) `
+                                     -Once
+$STPrin = New-ScheduledTaskPrincipal -UserId "NT AUTHORITY\SYSTEM" `
+                                     -LogonType ServiceAccount `
+                                     -RunLevel Highest
+Register-ScheduledTask -Action $action `
+                       -Trigger $trigger `
+                       -TaskName "S2DMonRestart" `
+                       -Description "Restart S2DMon service hourly" `
+                       -Principal $STPrin
+```
 
 Logs for the service are available in c:\Windows\Logs\s2dmon.log". For more informaiton check
 PSService.ps1 documentation.
@@ -150,45 +175,25 @@ C:\temp\s2dmon.ps1 -Remove
 The OMS solution can be setup by deploying it from Deploy to Azure button or using the template with
 Azure Portal, Azure PowerShell or Azure CLI. Deploy it in the same resource group where your OMS Log
 Analytics Workspace is located. After deployment the solution will be visible in Azure as resource.
-The view for the solution will also be availalbe in Overview of OMS Portal.
+The view for the solution will also be available in Overview of OMS Portal.
 
 ## S2D_CL Log Type
 
-When S2D ata appears in OMS it is located in S2D_CL type.
+When S2D data appears in OMS it is located in S2D_CL type.
 
-- CapacityAvailableValue_d	- Value for metric CapacityAvailable
-- CapacityPhysicalPooledAvailableValue_d - Value for metric CapacityPhysicalPooledAvailable
-- CapacityPhysicalPooledTotalValue_d - Value for metric CapacityPhysicalPooledTotal
-- CapacityPhysicalTotalValue_d - Value for metric CapacityPhysicalTotal
-- CapacityPhysicalUnpooledValue_d - Value for metric CapacityPhysicalUnpooled
-- CapacityTotalValue_d - Value for metric CapacityTotal
-- CapacityVolumesAvailableValue_d - Value for metric CapacityVolumesAvailable
-- CapacityVolumesTotalValue_d - Value for metric CapacityVolumesTotal
 - ClusterName_s - FQDN of the S2D cluster. All upper case.
-- CPUUsageAverageValue_d - Value for metric CPUUsageAverage. Used on Clusters
-- CPUUsageValue_d - Value for metric CPUUsage. Used on Nodes
 - FaultId_g - Fault ID
 - FaultingObjectDescription_s - Faulting object description
 - FaultingObjectLocation_s - Faulting object location
-- FaultingObjectType_s- Faulting object type
+- FaultingObjectType_s - Faulting object type
 - FaultingObjectUniqueId_s - Faulting object unique ID
 - FaultLevel_s - What kind of Fault it is. Cluster, Volume or Share as possible values
 - FaultType_s - Fault Type
-- FileSystemType_s - What kind of File system type the volume is. Usualy CSVFS_ReFS
+- FileSystemType_s - What kind of File system type the volume is. Usually CSVFS_ReFS
 - HealthStatus_s - Health status for volume
-- IOLatencyAverageValue_d - Value for metric IOLatencyAverage
-- IOLatencyReadValue_d - Value for metric IOLatencyRead
-- IOLatencyWriteValue_d - Value for metric IOLatencyWrite
-- IOPSReadValue_d - Value for metric IOPSRead
-- IOPSTotalValue_d - Value for metric IOPSTotal
-- IOPSWriteValue_d - Value for metric IOPSWrite
-- IOThroughputReadValue_d - Value for metric IOThroughputRead
-- IOThroughputTotalValue_d - Value for metric IOThroughputTotal
-- IOThroughputWriteValue_d - Value for metric IOThroughputWrite
-- MemoryAvailableValue_d - Value for metric MemoryAvailable
-- MemoryTotalValue_d - value for metric MemoryTotal
 - MetricLevel_s - what kind of metric it is. Possible values are Cluster, Node or Volume.
 - MetricName_s - name of the metric
+- MetricValue_d - value for metric data
 - OperationalStatus_s - Operational status for Volume
 - Reason_s - reason for fault
 - RecommendedActions_s - recommended actions for fault
@@ -196,8 +201,11 @@ When S2D ata appears in OMS it is located in S2D_CL type.
 - ServerName_s - Full FQDN of the server when the metric is for Node. All upper case.
 - Severity_s - Fault severity. Can be Unknown, Information, Degraded/Warning, Minor, Major, Critical or Fatal/NonRecoverable
 - SeverityNumber_d - Severity value in number. From 0 to 7 with excluding 2. Matches the sequence above for Severity
-- UnitType_s - What kind of unti the metric is. Possible values are Bytes, BytesPerSecond, CountPerSecond, Seconds and Percentage
+- UnitType_s - What kind of until the metric is. Possible values are Bytes, BytesPerSecond, CountPerSecond, Seconds and Percentage
 - VolumeLabel_s - Volume label
+
+>**Note**: It may take more than an hour when the solution is setup on a workspace for first time. Be patient.
+
 
 ## Notes
 
@@ -208,8 +216,8 @@ Please report any issues to [GitHub](https://github.com/slavizh/s2d-oms-mgmt-sol
 ### Issue 1
 
 Currently the script may end in unhandled exception where the service is running but the script
-itself is not. The error you will see in the log is `s2dmon.ps1 -Service # Error at line 3207: Not enough storage is available to complete this operation. `.
-Additionally in Applicaiton log the following error can be seen as well:
+itself is not. The error you will see in the log is `s2dmon.ps1 -Service # Error at line 3207: Not enough storage is available to complete this operation.`.
+Additionally in Application log the following error can be seen as well:
 
 ```
 Application: powershell.exe
@@ -265,19 +273,18 @@ the S2D is opened because the Fault related custom fields will not be created.
 
 ## Updates
 
-### Update 1
+### Update 3
 
-Changes:
-
-- I've made a couple of changes to the S2DMon Service. Increased the time for the script running cycle
- from 10 seconds to 60. 10 seconds was too intensive and caused multiple PowerShell threads to run
- at the same time. The service just couldn't keep up. Hopefully that will fix known issue 1.
-- Renamed the service to S2DMon in order to use that name in services.msc as well.
-- When getting S2D metrics I've set count to 1
+- You will need to update both the service and the views.
+- Updated the view for the solution to use the new query language of Log Analytics. You can use this new version only with upgraded Log Analytics workspace. More info [here](https://docs.microsoft.com/en-us/azure/log-analytics/log-analytics-log-search-upgrade).
+- Fixed bug in s2dmon.ps1 where incorrect value was pushed for field RecommendedActions_s.
+- Implemented some more logic in s2dmon.ps1 for error handling.
+- All metric values are now placed in MetricValue_d field instead of creating separate field for every different metric.
 
 How to update to new version:
 
 - Stop and remove service
+
 ```powershell
 C:\temp\s2dmon.ps1 -Stop
 C:\temp\s2dmon.ps1 -Remove
@@ -291,10 +298,19 @@ C:\temp\s2dmon.ps1 -Setup -OMSWorkspaceCreds (Get-Credential)
 C:\temp\s2dmon.ps1 -Start
 ```
 
+- Delete S2D solution from Azure portal
+
+![](images/delete-s2d.png)
+
+- Deploy S2D ARM template again.
+
+
+>**Note**: As some fields are changed it may take some time until the new data is fully visible in the dashboards.
+
 ### Update 2
 
 - In my env one the node where the service is gathering data I was getting metrics for that node
- twice. I think this is issue caued by Get-StorageNode cmdlet which returns the node on which you
+ twice. I think this is issue caused by Get-StorageNode cmdlet which returns the node on which you
  execute the command twice. I've implemented a logic for checking double records and removing
  duplicate records. This might be the cause for Issue 2.
 
@@ -303,6 +319,34 @@ To update to new version reinstall the service on all nodes:
 ```powershell
 C:\temp\s2dmon.ps1 -Stop
 C:\temp\s2dmon.ps1 -Remove
+C:\temp\s2dmon.ps1 -Setup -OMSWorkspaceCreds (Get-Credential)
+C:\temp\s2dmon.ps1 -Start
+```
+
+
+### Update 1
+
+Changes:
+
+- I've made a couple of changes to the S2DMon Service. Increased the time for the script running cycle
+ from 10 seconds to 60. 10 seconds was too intensive and caused multiple PowerShell threads to run
+ at the same time. The service just couldn't keep up. Hopefully that will fix known issue 1.
+- Renamed the service to S2DMon in order to use that name in services.msc as well.
+- When getting S2D metrics I've set count to 1
+
+How to update to new version:
+
+- Stop and remove service
+
+```powershell
+C:\temp\s2dmon.ps1 -Stop
+C:\temp\s2dmon.ps1 -Remove
+```
+
+- Copy the new file (s2dmon.ps1) to the folder
+- Setup and start the service again
+
+```powershell
 C:\temp\s2dmon.ps1 -Setup -OMSWorkspaceCreds (Get-Credential)
 C:\temp\s2dmon.ps1 -Start
 ```
