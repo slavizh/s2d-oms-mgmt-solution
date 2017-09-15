@@ -5,7 +5,7 @@
     "omsLogAnalyticsWorkspaceName": {
       "type": "string",
       "metadata": {
-        "description": "The name of existing OMS Log Analytics workspace."
+        "description": "The name of existing OMS Log Analytics V2 workspace."
       }
     },
     "omsLogAnalyticsWorkspaceLocation": {
@@ -14,7 +14,10 @@
         "East US",
         "West Europe",
         "Southeast Asia",
-        "Australia Southeast"
+        "Australia Southeast",
+        "West Central US",
+        "Japan East",
+        "UK South"
       ],
       "metadata": {
         "description": "The region to of existing OMS Log Analytics workspace."
@@ -23,29 +26,30 @@
     }
   },
   "variables": {
+    "logAnalyticsWorkspacesApiVersion": "2017-03-15-preview",
+    "logAnalyticsViewsApiVersion": "2015-11-01-preview",
+    "omsSolutionsApiVersion" :  "2015-11-01-preview",
     "solutionName": "S2D",
     "solutionId": "[concat(variables('solutionName'), ' [' , parameters('omsLogAnalyticsWorkspaceName'), ']')]",
-    "_solutionVersion": "1.0",
+    "solutionVersion": "2.0.0.0",
     "solutionPublisher": "Cloudadministrator.net",
     "solutionProduct": "[replace(concat(variables('solutionPublisher'),variables('solutionName')),' ','')]",
     "solutionPromotionCode": "",
     "solutionDescription": "OMS Solution for monitoring Storage Spaces Direct (S2D).",
-    "solutionAuthor": "stas@outlook.com",
-    "omsLogAnalyticsWorkspaceApiVersion": "2015-11-01-preview"
+    "solutionAuthor": "stas@outlook.com"
   },
   "resources": [
     {
       "name": "[parameters('omsLogAnalyticsWorkspaceName')]",
       "type": "Microsoft.OperationalInsights/workspaces",
       "location": "[parameters('omsLogAnalyticsWorkspaceLocation')]",
-      "apiVersion": "[variables('omsLogAnalyticsWorkspaceApiVersion')]",
+      "apiVersion": "[variables('logAnalyticsWorkspacesApiVersion')]",
       "resources": [
         {
           "name": "[variables('solutionId')]",
           "type": "views",
           "location": "[parameters('omsLogAnalyticsWorkspaceLocation')]",
-          "id": "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.OperationalInsights/workspaces/', parameters('omsLogAnalyticsWorkspaceName'),'/views/', variables('solutionId'))]",
-          "apiVersion": "[variables('omsLogAnalyticsWorkspaceApiVersion')]",
+          "apiVersion": "[variables('logAnalyticsViewsApiVersion')]",
           "dependson": [
             "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.OperationalInsights/workspaces/', parameters('omsLogAnalyticsWorkspaceName'))]"
           ],
@@ -54,7 +58,7 @@
             "Name": "[variables('solutionid')]",
             "DisplayName": "[variables('solutionName')]",
             "Description": "[variables('solutionDescription')]",
-            "Version": 0,
+            "Version": 2,
             "Author": "[variables('solutionAuthor')]",
             "Source": "Local",
             "Dashboard": [
@@ -79,7 +83,7 @@
                   "List": [
                     {
                       "Title": "Description",
-                      "Content": "The purpose of this management solution is to provide monitoring for Storage Spaces Direct clusters. The solution relies on Failover Cluster Health Service API for data.\n\nRequirements:\n\n- [OMSIngestionAPI](https://www.powershellgallery.com/packages/OMSIngestionAPI/) PowerShell module installed on S2D nodes\n- [S2DMon service](https://github.com/slavizh/s2d-oms-mgmt-solution) installed on S2D nodes\n\n[Full documentation](https://github.com/slavizh/s2d-oms-mgmt-solution)\n\nAuthor: [Stanislav Zhelyazkov](https://cloudadministrator.wordpress.com/)"
+                      "Content": "The purpose of this management solution is to provide monitoring for Storage Spaces Direct clusters. The solution relies on Failover Cluster Health Service API for data.\n\nRequirements:\n\n- [OMSIngestionAPI](https://www.powershellgallery.com/packages/OMSIngestionAPI/) PowerShell module installed on S2D nodes\n- [s2dmon service](https://github.com/slavizh/s2d-oms-mgmt-solution) installed on S2D nodes\n\nThis version will work only on Log Analytics V2 workspaces using the new search syntax.\n\n[Full documentation](https://github.com/slavizh/s2d-oms-mgmt-solution)\n\nAuthor: [Stanislav Zhelyazkov](https://cloudadministrator.wordpress.com/)"
                     }
                   ]
                 }
@@ -98,21 +102,21 @@
                   "Trend1": {
                     "Legend": "Major and Critical",
                     "LegendColor": "#ba141a",
-                    "ChartQuery": "Type=S2D_CL FaultLevel_s=Cluster  SeverityNumber_d>4  SecondTimeStamp_t>NOW-300SECONDS | measure count() by Reason_s,ClusterName_s,FaultId_g",
+                    "ChartQuery": "S2D_CL | where FaultLevel_s == 'Cluster' and SeverityNumber_d > 4 |  summarize arg_max(TimeGenerated, *) by ClusterName_s, FaultId_g, Reason_s",
                     "Calculation": {
-                      "Operation": "Count"
+                      "Operation": "Sum"
                     }
                   },
                   "Trend2": {
                     "Legend": "Minor and Warning",
                     "LegendColor": "#fcd116",
-                    "ChartQuery": "Type=S2D_CL FaultLevel_s=Cluster  (SeverityNumber_d>2 AND SeverityNumber_d<5)  SecondTimeStamp_t>NOW-300SECONDS  | measure count() by Reason_s,ClusterName_s,FaultId_g",
+                    "ChartQuery": "S2D_CL | where FaultLevel_s == 'Cluster' | where SeverityNumber_d > 2 and SeverityNumber_d < 5 |  summarize arg_max(TimeGenerated, *) by ClusterName_s, FaultId_g, Reason_s",
                     "Calculation": {
-                      "Operation": "Count"
+                      "Operation": "Sum"
                     }
                   },
                   "List": {
-                    "Query": "Type=S2D_CL FaultLevel_s=Cluster  SecondTimeStamp_t>NOW-300SECONDS | measure countdistinct(FaultId_g) by Reason_s,Severity_s,ClusterName_s",
+                    "Query": "S2D_CL | where FaultLevel_s == 'Cluster' and SecondTimeStamp_t > ago(5m) |  summarize arg_max(TimeGenerated, *) by ClusterName_s, FaultId_g, Reason_s | summarize count() by Reason_s,Severity_s,ClusterName_s,FaultId_g | project-away FaultId_g",
                     "HideGraph": true,
                     "enableSparklines": false,
                     "operation": "Last Sample",
@@ -145,7 +149,7 @@
                       ]
                     },
                     "NameDSVSeparator": "",
-                    "NavigationQuery": "Type=S2D_CL FaultLevel_s=Cluster {selected item} | Dedup FaultId_g"
+                    "NavigationQuery": "S2D_CL | where FaultLevel_s == 'Cluster' and SecondTimeStamp_t > ago(10m) and {selected item} |  summarize arg_max(TimeGenerated, *) by ClusterName_s, FaultId_g, Reason_s | project ClusterName_s, FaultId_g, TimeGenerated, Severity_s, Reason_s, FaultingObjectDescription_s, FaultingObjectType_s, FaultingObjectLocation_s, FaultType_s, RecommendedActions_s"
                   }
                 }
               },
@@ -163,21 +167,21 @@
                   "Trend1": {
                     "Legend": "Major and Critical",
                     "LegendColor": "#ba141a",
-                    "ChartQuery": "Type=S2D_CL FaultLevel_s=Volume  SeverityNumber_d>4 SecondTimeStamp_t>NOW-300SECONDS | measure count() by Reason_s,ClusterName_s,FaultId_g",
+                    "ChartQuery": "S2D_CL | where FaultLevel_s == 'Volume' and SeverityNumber_d > 4 |  summarize arg_max(TimeGenerated, *) by ClusterName_s, FaultId_g, Reason_s",
                     "Calculation": {
-                      "Operation": "Count"
+                      "Operation": "Sum"
                     }
                   },
                   "Trend2": {
                     "Legend": "Minor and Warning",
                     "LegendColor": "#fcd116",
-                    "ChartQuery": "Type=S2D_CL FaultLevel_s=Volume  (SeverityNumber_d>2 AND SeverityNumber_d<5)   SecondTimeStamp_t>NOW-300SECONDS | measure count() by Reason_s,ClusterName_s,FaultId_g",
+                    "ChartQuery": "S2D_CL | where FaultLevel_s == 'Volume' | where SeverityNumber_d > 2 and SeverityNumber_d < 5 |  summarize arg_max(TimeGenerated, *) by ClusterName_s, FaultId_g",
                     "Calculation": {
-                      "Operation": "Count"
+                      "Operation": "Sum"
                     }
                   },
                   "List": {
-                    "Query": "Type=S2D_CL FaultLevel_s=Volume  SecondTimeStamp_t>NOW-300SECONDS | measure countdistinct(FaultId_g) by Reason_s,Severity_s,ClusterName_s",
+                    "Query": "S2D_CL | where FaultLevel_s == 'Volume' and SecondTimeStamp_t > ago(5m) |  summarize arg_max(TimeGenerated, *) by ClusterName_s, FaultId_g, Reason_s | summarize count() by Reason_s,Severity_s,ClusterName_s,FaultId_g | project-away FaultId_g",
                     "HideGraph": true,
                     "enableSparklines": false,
                     "operation": "Last Sample",
@@ -210,7 +214,7 @@
                       ]
                     },
                     "NameDSVSeparator": "",
-                    "NavigationQuery": "Type=S2D_CL FaultLevel_s=Volume {selected item} | Dedup FaultId_g}"
+                    "NavigationQuery": "S2D_CL | where FaultLevel_s == 'Volume' and SecondTimeStamp_t > ago(10m) and {selected item} |  summarize arg_max(TimeGenerated, *) by ClusterName_s, FaultId_g, Reason_s | project ClusterName_s, FaultId_g, TimeGenerated, Severity_s, Reason_s, FaultingObjectDescription_s, FaultingObjectType_s, FaultingObjectLocation_s, FaultType_s, RecommendedActions_s"
                   }
                 }
               },
@@ -228,21 +232,21 @@
                   "Trend1": {
                     "Legend": "Major and Critical",
                     "LegendColor": "#ba141a",
-                    "ChartQuery": "Type=S2D_CL FaultLevel_s=Share  SeverityNumber_d>4 SecondTimeStamp_t>NOW-300SECONDS | measure count() by Reason_s,ClusterName_s,FaultId_g",
+                    "ChartQuery": "S2D_CL | where FaultLevel_s == 'Share' and SeverityNumber_d > 4 |  summarize arg_max(TimeGenerated, *) by ClusterName_s, FaultId_g, Reason_s",
                     "Calculation": {
-                      "Operation": "Count"
+                      "Operation": "Sum"
                     }
                   },
                   "Trend2": {
                     "Legend": "Minor and Warning",
                     "LegendColor": "#fcd116",
-                    "ChartQuery": "Type=S2D_CL FaultLevel_s=Share  (SeverityNumber_d>2 AND SeverityNumber_d<5)   SecondTimeStamp_t>NOW-300SECONDS | measure count() by Reason_s,ClusterName_s,FaultId_g",
+                    "ChartQuery": "S2D_CL | where FaultLevel_s == 'Share' | where SeverityNumber_d > 2 and SeverityNumber_d < 5 |  summarize arg_max(TimeGenerated, *) by ClusterName_s, FaultId_g",
                     "Calculation": {
-                      "Operation": "Count"
+                      "Operation": "Sum"
                     }
                   },
                   "List": {
-                    "Query": "Type=S2D_CL FaultLevel_s=Share  SecondTimeStamp_t>NOW-300SECONDS | measure countdistinct(FaultId_g) by Reason_s,Severity_s,ClusterName_s",
+                    "Query": "S2D_CL | where FaultLevel_s == 'Share' and SecondTimeStamp_t > ago(5m) |  summarize arg_max(TimeGenerated, *) by ClusterName_s, FaultId_g, Reason_s | summarize count() by Reason_s,Severity_s,ClusterName_s,FaultId_g | project-away FaultId_g",
                     "HideGraph": true,
                     "enableSparklines": false,
                     "operation": "Last Sample",
@@ -275,7 +279,7 @@
                       ]
                     },
                     "NameDSVSeparator": "",
-                    "NavigationQuery": "Type=S2D_CL FaultLevel_s=Share {selected item} | Dedup FaultId_g}"
+                    "NavigationQuery": "S2D_CL | where FaultLevel_s == 'Share' and SecondTimeStamp_t > ago(10m) and {selected item} |  summarize arg_max(TimeGenerated, *) by ClusterName_s, FaultId_g, Reason_s | project ClusterName_s, FaultId_g, TimeGenerated, Severity_s, Reason_s, FaultingObjectDescription_s, FaultingObjectType_s, FaultingObjectLocation_s, FaultType_s, RecommendedActions_s"
                   }
                 }
               },
@@ -292,14 +296,14 @@
                   },
                   "Tile": {
                     "Legend": "S2D Clusters",
-                    "Query": "Type=S2D_CL  | measure countdistinct(ServerName_s) by ClusterName_s"
+                    "Query": "S2D_CL | where isnotempty(ServerName_s)  | summarize dcount(ServerName_s) by ClusterName_s | count"
                   },
                   "SecondTile": {
                     "Legend": "S2D Nodes",
-                    "Query": "Type=S2D_CL  | measure countdistinct(ServerName_s) by ServerName_s"
+                    "Query": "S2D_CL | where isnotempty(ServerName_s)  | summarize dcount(ServerName_s) by ServerName_s | count"
                   },
                   "List": {
-                    "Query": "Type=S2D_CL  | measure countdistinct(ServerName_s) by ClusterName_s",
+                    "Query": "S2D_CL | where isnotempty(ServerName_s)  | summarize dcount(ServerName_s) by ClusterName_s",
                     "HideGraph": false,
                     "enableSparklines": false,
                     "operation": "Last Sample",
@@ -332,7 +336,7 @@
                       ]
                     },
                     "NameDSVSeparator": "",
-                    "NavigationQuery": "Type=S2D_CL {selected item} | measure countdistinct(ServerName_s) by ClusterName_s"
+                    "NavigationQuery": "S2D_CL | where isnotempty(ServerName_s) and {selected item}  | summarize dcount(ServerName_s) by ClusterName_s "
                   }
                 }
               },
@@ -352,7 +356,7 @@
                     "Subtitle": ""
                   },
                   "LineChart": {
-                    "Query": "Type=S2D_CL MetricLevel_s=Cluster MetricName_s=CPUUsageAverage  | measure avg(CPUUsageAverageValue_d) by ClusterName_s  | display LineChart",
+                    "Query": "S2D_CL | where MetricLevel_s == 'Cluster' and MetricName_s == 'CPUUsageAverage' | summarize avg(MetricValue_d) by ClusterName_s | render timechart",
                     "yAxis": {
                       "isLogarithmic": false,
                       "units": {
@@ -364,7 +368,7 @@
                     }
                   },
                   "List": {
-                    "Query": "Type=S2D_CL MetricLevel_s=Cluster MetricName_s=CPUUsageAverage  | measure avg(CPUUsageAverageValue_d) by ClusterName_s | display LineChart ",
+                    "Query": "S2D_CL | where MetricLevel_s == 'Cluster' and MetricName_s == 'CPUUsageAverage' | summarize avg(MetricValue_d) by ClusterName_s | render timechart",
                     "HideGraph": false,
                     "enableSparklines": true,
                     "operation": "Last Sample",
@@ -397,7 +401,7 @@
                       ]
                     },
                     "NameDSVSeparator": "",
-                    "NavigationQuery": "Type=S2D_CL MetricLevel_s=Cluster MetricName_s=CPUUsageAverage {selected item} | measure avg(CPUUsageAverageValue_d) by ClusterName_s |  display LineChart"
+                    "NavigationQuery": "S2D_CL | where MetricLevel_s == 'Cluster' and MetricName_s == 'CPUUsageAverage' and {selected item} | summarize avg(MetricValue_d) by ClusterName_s, bin_at(TimeGenerated, 1h, now() ) | render timechart"
                   }
                 }
               },
@@ -417,7 +421,7 @@
                     "Subtitle": ""
                   },
                   "LineChart": {
-                    "Query": "Type=S2D_CL MetricLevel_s=Cluster MetricName_s=MemoryAvailable  | measure avg(div(MemoryAvailableValue_d,1073741824)) by ClusterName_s | display LineChart",
+                    "Query": "S2D_CL | where MetricLevel_s == 'Cluster' and MetricName_s == 'MemoryAvailable' | summarize round(avg(MetricValue_d/1073741824),2) by ClusterName_s | render timechart",
                     "yAxis": {
                       "isLogarithmic": false,
                       "units": {
@@ -429,7 +433,7 @@
                     }
                   },
                   "List": {
-                    "Query": "Type=S2D_CL MetricLevel_s=Cluster MetricName_s=MemoryAvailable  | measure avg(div(MemoryAvailableValue_d,1073741824)) by ClusterName_s | Sort AggregatedValue ASC",
+                    "Query": "S2D_CL | where MetricLevel_s == 'Cluster' and MetricName_s == 'MemoryAvailable' | summarize AVGMem = round(avg(MetricValue_d/1073741824),2) by ClusterName_s | sort by AVGMem asc  | render timechart",
                     "HideGraph": false,
                     "enableSparklines": false,
                     "operation": "Last Sample",
@@ -462,7 +466,7 @@
                       ]
                     },
                     "NameDSVSeparator": "",
-                    "NavigationQuery": "Type=S2D_CL MetricLevel_s=Cluster MetricName_s=MemoryAvailable  | measure avg(div(MemoryAvailableValue_d,1073741824)) by ClusterName_s | display LineChart"
+                    "NavigationQuery": "S2D_CL | where MetricLevel_s == 'Cluster' and MetricName_s == 'MemoryAvailable' and {selected item} | summarize round(avg(MetricValue_d/1073741824),2) by ClusterName_s, bin_at(TimeGenerated, 1h, now() ) | render timechart"
                   }
                 }
               },
@@ -482,7 +486,7 @@
                     "Subtitle": ""
                   },
                   "LineChart": {
-                    "Query": "Type=S2D_CL MetricLevel_s=Cluster MetricName_s=IOLatencyAverage | measure avg(mul(IOLatencyAverageValue_d,1000)) by ClusterName_s | display LineChart",
+                    "Query": "S2D_CL | where MetricLevel_s == 'Cluster' and MetricName_s == 'IOLatencyAverage' | summarize avg(MetricValue_d*1000) by ClusterName_s | render timechart",
                     "yAxis": {
                       "isLogarithmic": false,
                       "units": {
@@ -494,10 +498,10 @@
                     }
                   },
                   "List": {
-                    "Query": "Type=S2D_CL MetricLevel_s=Cluster MetricName_s=IOLatencyAverage | measure avg(mul(IOLatencyAverageValue_d,1000)) by ClusterName_s | display LineChart",
+                    "Query": "S2D_CL | where MetricLevel_s == 'Cluster' and MetricName_s == 'IOLatencyAverage' | summarize avg(MetricValue_d*1000) by ClusterName_s | render timechart",
                     "HideGraph": false,
                     "enableSparklines": true,
-                    "operation": "Summary",
+                    "operation": "Last Sample",
                     "ColumnsTitle": {
                       "Name": "Cluster",
                       "Value": "IO Latency (ms)"
@@ -527,7 +531,7 @@
                       ]
                     },
                     "NameDSVSeparator": "",
-                    "NavigationQuery": "Type=S2D_CL MetricLevel_s=Cluster MetricName_s=IOLatencyAverage {selected item} | measure avg(mul(IOLatencyAverageValue_d,1000)) by ClusterName_s | display LineChart"
+                    "NavigationQuery": "S2D_CL | where MetricLevel_s == 'Cluster' and MetricName_s == 'IOLatencyAverage' and {selected item} | summarize avg(MetricValue_d*1000) by ClusterName_s, bin_at(TimeGenerated, 1h, now() ) | render timechart"
                   }
                 }
               },
@@ -547,7 +551,7 @@
                     "Subtitle": ""
                   },
                   "LineChart": {
-                    "Query": "Type=S2D_CL MetricLevel_s=Cluster MetricName_s=IOLatencyRead | measure avg(mul(IOLatencyReadValue_d,1000)) by ClusterName_s | display LineChart",
+                    "Query": "S2D_CL | where MetricLevel_s == 'Cluster' and MetricName_s == 'IOLatencyRead' | summarize avg(MetricValue_d*1000) by ClusterName_s | render timechart",
                     "yAxis": {
                       "isLogarithmic": false,
                       "units": {
@@ -559,10 +563,10 @@
                     }
                   },
                   "List": {
-                    "Query": "Type=S2D_CL MetricLevel_s=Cluster MetricName_s=IOLatencyRead | measure avg(mul(IOLatencyReadValue_d,1000)) by ClusterName_s | display LineChart",
+                    "Query": "S2D_CL | where MetricLevel_s == 'Cluster' and MetricName_s == 'IOLatencyRead' | summarize avg(MetricValue_d*1000) by ClusterName_s | render timechart",
                     "HideGraph": false,
                     "enableSparklines": true,
-                    "operation": "Summary",
+                    "operation": "Last Sample",
                     "ColumnsTitle": {
                       "Name": "Cluster",
                       "Value": "IO Read Latency (ms)"
@@ -592,7 +596,7 @@
                       ]
                     },
                     "NameDSVSeparator": "",
-                    "NavigationQuery": "Type=S2D_CL MetricLevel_s=Cluster MetricName_s=IOLatencyRead {selected item} | measure avg(mul(IOLatencyReadValue_d,1000)) by ClusterName_s | display LineChart"
+                    "NavigationQuery": "S2D_CL | where MetricLevel_s == 'Cluster' and MetricName_s == 'IOLatencyRead' and {selected item} | summarize avg(MetricValue_d*1000) by ClusterName_s, bin_at(TimeGenerated, 1h, now() ) | render timechart"
                   }
                 }
               },
@@ -612,7 +616,7 @@
                     "Subtitle": ""
                   },
                   "LineChart": {
-                    "Query": "Type=S2D_CL MetricLevel_s=Cluster (MetricName_s=IOLatencyWrite) | measure avg(mul(IOLatencyWriteValue_d,1000)) by ClusterName_s | display LineChart",
+                    "Query": "S2D_CL | where MetricLevel_s == 'Cluster' and MetricName_s == 'IOLatencyWrite' | summarize avg(MetricValue_d*1000) by ClusterName_s | render timechart",
                     "yAxis": {
                       "isLogarithmic": false,
                       "units": {
@@ -624,10 +628,10 @@
                     }
                   },
                   "List": {
-                    "Query": "Type=S2D_CL MetricLevel_s=Cluster (MetricName_s=IOLatencyWrite) | measure avg(mul(IOLatencyWriteValue_d,1000)) by ClusterName_s | display LineChart",
+                    "Query": "S2D_CL | where MetricLevel_s == 'Cluster' and MetricName_s == 'IOLatencyWrite' | summarize avg(MetricValue_d*1000) by ClusterName_s | render timechart",
                     "HideGraph": false,
                     "enableSparklines": true,
-                    "operation": "Summary",
+                    "operation": "Last Sample",
                     "ColumnsTitle": {
                       "Name": "Cluster",
                       "Value": "IO Write Latency (ms)"
@@ -657,7 +661,7 @@
                       ]
                     },
                     "NameDSVSeparator": "",
-                    "NavigationQuery": "Type=S2D_CL MetricLevel_s=Cluster (MetricName_s=IOLatencyWrite) {selected item} | measure avg(mul(IOLatencyWriteValue_d,1000)) by ClusterName_s | display LineChart"
+                    "NavigationQuery": "S2D_CL | where MetricLevel_s == 'Cluster' and MetricName_s == 'IOLatencyWrite' and {selected item} | summarize avg(MetricValue_d*1000) by ClusterName_s, bin_at(TimeGenerated, 1h, now() ) | render timechart"
                   }
                 }
               },
@@ -677,7 +681,7 @@
                         "Subtitle": ""
                       },
                       "LineChart": {
-                        "Query": "Type=S2D_CL MetricLevel_s=Cluster (MetricName_s=IOPSTotal) | measure avg(IOPSTotalValue_d) by ClusterName_s | display LineChart",
+                        "Query": "S2D_CL | where MetricLevel_s == 'Cluster' and MetricName_s == 'IOPSTotal' | summarize avg(MetricValue_d) by ClusterName_s | render timechart",
                         "yAxis": {
                           "isLogarithmic": false,
                           "units": {
@@ -695,7 +699,7 @@
                         "Subtitle": ""
                       },
                       "LineChart": {
-                        "Query": "Type=S2D_CL MetricLevel_s=Cluster (MetricName_s=IOPSRead) | measure avg(IOPSReadValue_d) by ClusterName_s | display LineChart",
+                        "Query": "S2D_CL | where MetricLevel_s == 'Cluster' and MetricName_s == 'IOPSRead' | summarize avg(MetricValue_d) by ClusterName_s | render timechart",
                         "yAxis": {
                           "isLogarithmic": false,
                           "units": {
@@ -713,7 +717,7 @@
                         "Subtitle": ""
                       },
                       "LineChart": {
-                        "Query": "Type=S2D_CL MetricLevel_s=Cluster (MetricName_s=IOPSWrite) | measure avg(IOPSWriteValue_d) by ClusterName_s | display LineChart",
+                        "Query": "S2D_CL | where MetricLevel_s == 'Cluster' and MetricName_s == 'IOPSWrite' | summarize avg(MetricValue_d) by ClusterName_s | render timechart",
                         "yAxis": {
                           "isLogarithmic": false,
                           "units": {
@@ -744,9 +748,9 @@
                         "Subtitle": ""
                       },
                       "LineChart": {
-                        "Query": "Type=S2D_CL MetricLevel_s=Cluster (MetricName_s=IOThroughputTotal) | measure avg(IOThroughputTotalValue_d) by ClusterName_s | display LineChart",
+                        "Query": "S2D_CL | where MetricLevel_s == 'Cluster' and MetricName_s == 'IOThroughputTotal' | summarize avg(MetricValue_d) by ClusterName_s | render timechart",
                         "yAxis": {
-                          "isLogarithmic": false,
+                          "isLogarithmic": true,
                           "units": {
                             "baseUnitType": "BitRate",
                             "baseUnit": "BytesPerSec",
@@ -762,9 +766,9 @@
                         "Subtitle": ""
                       },
                       "LineChart": {
-                        "Query": "Type=S2D_CL MetricLevel_s=Cluster (MetricName_s=IOThroughputRead) | measure avg(IOThroughputReadValue_d) by ClusterName_s | display LineChart",
+                        "Query": "S2D_CL | where MetricLevel_s == 'Cluster' and MetricName_s == 'IOThroughputRead' | summarize avg(MetricValue_d) by ClusterName_s | render timechart",
                         "yAxis": {
-                          "isLogarithmic": false,
+                          "isLogarithmic": true,
                           "units": {
                             "baseUnitType": "BitRate",
                             "baseUnit": "BytesPerSec",
@@ -780,9 +784,9 @@
                         "Subtitle": ""
                       },
                       "LineChart": {
-                        "Query": "Type=S2D_CL MetricLevel_s=Cluster (MetricName_s=IOThroughputWrite) | measure avg(IOThroughputWriteValue_d) by ClusterName_s | display LineChart",
+                        "Query": "S2D_CL | where MetricLevel_s == 'Cluster' and MetricName_s == 'IOThroughputWrite' | summarize avg(MetricValue_d) by ClusterName_s | render timechart",
                         "yAxis": {
-                          "isLogarithmic": false,
+                          "isLogarithmic": true,
                           "units": {
                             "baseUnitType": "BitRate",
                             "baseUnit": "BytesPerSec",
@@ -811,9 +815,9 @@
                         "Subtitle": ""
                       },
                       "LineChart": {
-                        "Query": "Type=S2D_CL MetricLevel_s=Cluster MetricName_s=CapacityPhysicalPooledAvailable | measure avg(CapacityPhysicalPooledAvailableValue_d) by ClusterName_s | display LineChart",
+                        "Query": "S2D_CL | where MetricLevel_s == 'Cluster' and MetricName_s == 'CapacityPhysicalPooledAvailable' | summarize avg(MetricValue_d) by ClusterName_s | render timechart",
                         "yAxis": {
-                          "isLogarithmic": false,
+                          "isLogarithmic": true,
                           "units": {
                             "baseUnitType": "Bits",
                             "baseUnit": "Bytes",
@@ -829,9 +833,9 @@
                         "Subtitle": ""
                       },
                       "LineChart": {
-                        "Query": "Type=S2D_CL MetricLevel_s=Cluster MetricName_s=CapacityVolumesTotal |measure avg(CapacityVolumesTotalValue_d) by ClusterName_s | display LineChart",
+                        "Query": "S2D_CL | where MetricLevel_s == 'Cluster' and MetricName_s == 'CapacityVolumesTotal' | summarize avg(MetricValue_d) by ClusterName_s | render timechart",
                         "yAxis": {
-                          "isLogarithmic": false,
+                          "isLogarithmic": true,
                           "units": {
                             "baseUnitType": "Bits",
                             "baseUnit": "Bytes",
@@ -847,9 +851,9 @@
                         "Subtitle": ""
                       },
                       "LineChart": {
-                        "Query": "Type=S2D_CL MetricLevel_s=Cluster MetricName_s=CapacityVolumesAvailable |measure avg(CapacityVolumesAvailableValue_d) by ClusterName_s | display LineChart",
+                        "Query": "S2D_CL | where MetricLevel_s == 'Cluster' and MetricName_s == 'CapacityVolumesAvailable' | summarize avg(MetricValue_d) by ClusterName_s | render timechart",
                         "yAxis": {
-                          "isLogarithmic": false,
+                          "isLogarithmic": true,
                           "units": {
                             "baseUnitType": "Bits",
                             "baseUnit": "Bytes",
@@ -878,7 +882,7 @@
                     "Subtitle": ""
                   },
                   "LineChart": {
-                    "Query": "Type=S2D_CL MetricLevel_s=Node MetricName_s=CPUUsage  | measure avg(CPUUsageValue_d) by ServerName_s,ClusterName_s  | display LineChart",
+                    "Query": "S2D_CL | where MetricLevel_s == 'Node' and MetricName_s == 'CPUUsage' | summarize avg(MetricValue_d) by ServerName_s, ClusterName_s | render timechart",
                     "yAxis": {
                       "isLogarithmic": false,
                       "units": {
@@ -890,7 +894,7 @@
                     }
                   },
                   "List": {
-                    "Query": "Type=S2D_CL MetricLevel_s=Node MetricName_s=CPUUsage  | measure avg(CPUUsageValue_d) by ServerName_s,ClusterName_s | display LineChart ",
+                    "Query": "S2D_CL | where MetricLevel_s == 'Node' and MetricName_s == 'CPUUsage' | summarize avg(MetricValue_d) by ServerName_s, ClusterName_s | render timechart",
                     "HideGraph": false,
                     "enableSparklines": true,
                     "operation": "Last Sample",
@@ -923,7 +927,7 @@
                       ]
                     },
                     "NameDSVSeparator": "",
-                    "NavigationQuery": "Type=S2D_CL MetricLevel_s=Node MetricName_s=CPUUsage {selected item} | measure avg(CPUUsageValue_d) by ServerName_s,ClusterName_s |  display LineChart"
+                    "NavigationQuery": "S2D_CL | where MetricLevel_s == 'Node' and MetricName_s == 'CPUUsage' and {selected item} | summarize avg(MetricValue_d) by ServerName_s, ClusterName_s, bin_at(TimeGenerated, 1h, now() ) | render timechart"
                   }
                 }
               },
@@ -943,7 +947,7 @@
                     "Subtitle": ""
                   },
                   "LineChart": {
-                    "Query": "Type=S2D_CL MetricLevel_s=Node MetricName_s=MemoryAvailable  | measure avg(div(MemoryAvailableValue_d,1073741824)) by ServerName_s,ClusterName_s | display LineChart",
+                    "Query": "S2D_CL | where MetricLevel_s == 'Node' and MetricName_s == 'MemoryAvailable' | summarize round(avg(MetricValue_d/1073741824),2) by ServerName_s, ClusterName_s | render timechart",
                     "yAxis": {
                       "isLogarithmic": false,
                       "units": {
@@ -955,7 +959,7 @@
                     }
                   },
                   "List": {
-                    "Query": "Type=S2D_CL MetricLevel_s=Node MetricName_s=MemoryAvailable  | measure avg(div(MemoryAvailableValue_d,1073741824)) by ServerName_s,ClusterName_s | Sort AggregatedValue ASC",
+                    "Query": "S2D_CL | where MetricLevel_s == 'Node' and MetricName_s == 'MemoryAvailable' | summarize AVGMem = round(avg(MetricValue_d/1073741824),2) by ServerName_s, ClusterName_s | sort  by AVGMem asc | render timechart",
                     "HideGraph": false,
                     "enableSparklines": false,
                     "ColumnsTitle": {
@@ -988,7 +992,7 @@
                       ]
                     },
                     "NameDSVSeparator": "",
-                    "NavigationQuery": "Type=S2D_CL MetricLevel_s=Node MetricName_s=MemoryAvailable  | measure avg(div(MemoryAvailableValue_d,1073741824)) by ServerName_s,ClusterName_s | display LineChart"
+                    "NavigationQuery": "S2D_CL | where MetricLevel_s == 'Node' and MetricName_s == 'MemoryAvailable' and {selected item} | summarize round(avg(MetricValue_d/1073741824),2) by ServerName_s, ClusterName_s, bin_at(TimeGenerated, 1h, now() ) | render timechart"
                   }
                 }
               },
@@ -1008,7 +1012,7 @@
                     "Subtitle": ""
                   },
                   "LineChart": {
-                    "Query": "Type=S2D_CL MetricLevel_s=Node MetricName_s=IOLatencyAverage | measure avg(mul(IOLatencyAverageValue_d,1000)) by ServerName_s,ClusterName_s | display LineChart",
+                    "Query": "S2D_CL | where MetricLevel_s == 'Node' and MetricName_s == 'IOLatencyAverage' | summarize avg(MetricValue_d*1000) by ServerName_s, ClusterName_s | render timechart",
                     "yAxis": {
                       "isLogarithmic": false,
                       "units": {
@@ -1020,10 +1024,10 @@
                     }
                   },
                   "List": {
-                    "Query": "Type=S2D_CL MetricLevel_s=Node MetricName_s=IOLatencyAverage | measure avg(mul(IOLatencyAverageValue_d,1000)) by ServerName_s,ClusterName_s | display LineChart",
+                    "Query": "S2D_CL | where MetricLevel_s == 'Node' and MetricName_s == 'IOLatencyAverage' | summarize avg(MetricValue_d*1000) by ServerName_s, ClusterName_s | render timechart",
                     "HideGraph": false,
                     "enableSparklines": true,
-                    "operation": "Summary",
+                    "operation": "Last Sample",
                     "ColumnsTitle": {
                       "Name": "Node",
                       "Value": "IO Latency (ms)"
@@ -1053,7 +1057,7 @@
                       ]
                     },
                     "NameDSVSeparator": "",
-                    "NavigationQuery": "Type=S2D_CL MetricLevel_s=Node MetricName_s=IOLatencyAverage {selected item} | measure avg(mul(IOLatencyAverageValue_d,1000)) by ServerName_s,ClusterName_s | display LineChart"
+                    "NavigationQuery": "S2D_CL | where MetricLevel_s == 'Node' and MetricName_s == 'IOLatencyAverage' and {selected item} | summarize avg(MetricValue_d*1000) by ServerName_s, ClusterName_s, bin_at(TimeGenerated, 1h, now() ) | render timechart"
                   }
                 }
               },
@@ -1073,7 +1077,7 @@
                     "Subtitle": ""
                   },
                   "LineChart": {
-                    "Query": "Type=S2D_CL MetricLevel_s=Node MetricName_s=IOLatencyRead | measure avg(mul(IOLatencyReadValue_d,1000)) by ServerName_s,ClusterName_s | display LineChart",
+                    "Query": "S2D_CL | where MetricLevel_s == 'Node' and MetricName_s == 'IOLatencyRead' | summarize avg(MetricValue_d*1000) by ServerName_s, ClusterName_s | render timechart",
                     "yAxis": {
                       "isLogarithmic": false,
                       "units": {
@@ -1085,10 +1089,10 @@
                     }
                   },
                   "List": {
-                    "Query": "Type=S2D_CL MetricLevel_s=Node MetricName_s=IOLatencyRead | measure avg(mul(IOLatencyReadValue_d,1000)) by ServerName_s,ClusterName_s | display LineChart",
+                    "Query": "S2D_CL | where MetricLevel_s == 'Node' and MetricName_s == 'IOLatencyRead' | summarize avg(MetricValue_d*1000) by ServerName_s, ClusterName_s | render timechart",
                     "HideGraph": false,
                     "enableSparklines": true,
-                    "operation": "Summary",
+                    "operation": "Last Sample",
                     "ColumnsTitle": {
                       "Name": "Node",
                       "Value": "IO Read Latency (ms)"
@@ -1118,7 +1122,7 @@
                       ]
                     },
                     "NameDSVSeparator": "",
-                    "NavigationQuery": "Type=S2D_CL MetricLevel_s=Node MetricName_s=IOLatencyRead {selected item} | measure avg(mul(IOLatencyReadValue_d,1000)) by ServerName_s,ClusterName_s | display LineChart"
+                    "NavigationQuery": "S2D_CL | where MetricLevel_s == 'Node' and MetricName_s == 'IOLatencyRead' and {selected item} | summarize avg(MetricValue_d*1000) by ServerName_s, ClusterName_s, bin_at(TimeGenerated, 1h, now() ) | render timechart"
                   }
                 }
               },
@@ -1138,7 +1142,7 @@
                     "Subtitle": ""
                   },
                   "LineChart": {
-                    "Query": "Type=S2D_CL MetricLevel_s=Node (MetricName_s=IOLatencyWrite) | measure avg(mul(IOLatencyWriteValue_d,1000)) by ServerName_s,ClusterName_s | display LineChart",
+                    "Query": "S2D_CL | where MetricLevel_s == 'Node' and MetricName_s == 'IOLatencyWrite' | summarize avg(MetricValue_d*1000) by ServerName_s, ClusterName_s | render timechart",
                     "yAxis": {
                       "isLogarithmic": false,
                       "units": {
@@ -1150,10 +1154,10 @@
                     }
                   },
                   "List": {
-                    "Query": "Type=S2D_CL MetricLevel_s=Node (MetricName_s=IOLatencyWrite) | measure avg(mul(IOLatencyWriteValue_d,1000)) by ServerName_s,ClusterName_s | display LineChart",
+                    "Query": "S2D_CL | where MetricLevel_s == 'Node' and MetricName_s == 'IOLatencyWrite' | summarize avg(MetricValue_d*1000) by ServerName_s, ClusterName_s | render timechart",
                     "HideGraph": false,
                     "enableSparklines": true,
-                    "operation": "Summary",
+                    "operation": "Last Sample",
                     "ColumnsTitle": {
                       "Name": "Node",
                       "Value": "IO Write Latency (ms)"
@@ -1183,7 +1187,7 @@
                       ]
                     },
                     "NameDSVSeparator": "",
-                    "NavigationQuery": "Type=S2D_CL MetricLevel_s=Node (MetricName_s=IOLatencyWrite) {selected item} | measure avg(mul(IOLatencyWriteValue_d,1000)) by ServerName_s,ClusterName_s | display LineChart"
+                    "NavigationQuery": "S2D_CL | where MetricLevel_s == 'Node' and MetricName_s == 'IOLatencyWrite' and {selected item} | summarize avg(MetricValue_d*1000) by ServerName_s, ClusterName_s, bin_at(TimeGenerated, 1h, now() ) | render timechart"
                   }
                 }
               },
@@ -1203,7 +1207,7 @@
                         "Subtitle": ""
                       },
                       "LineChart": {
-                        "Query": "Type=S2D_CL MetricLevel_s=Node (MetricName_s=IOPSTotal) | measure avg(IOPSTotalValue_d) by ServerName_s,ClusterName_s | display LineChart",
+                        "Query": "S2D_CL | where MetricLevel_s == 'Node' and MetricName_s == 'IOPSTotal' | summarize avg(MetricValue_d) by ServerName_s, ClusterName_s | render timechart",
                         "yAxis": {
                           "isLogarithmic": false,
                           "units": {
@@ -1221,7 +1225,7 @@
                         "Subtitle": ""
                       },
                       "LineChart": {
-                        "Query": "Type=S2D_CL MetricLevel_s=Node (MetricName_s=IOPSRead) | measure avg(IOPSReadValue_d) by ServerName_s,ClusterName_s | display LineChart",
+                        "Query": "S2D_CL | where MetricLevel_s == 'Node' and MetricName_s == 'IOPSRead' | summarize avg(MetricValue_d) by ServerName_s, ClusterName_s | render timechart",
                         "yAxis": {
                           "isLogarithmic": false,
                           "units": {
@@ -1239,7 +1243,7 @@
                         "Subtitle": ""
                       },
                       "LineChart": {
-                        "Query": "Type=S2D_CL MetricLevel_s=Node (MetricName_s=IOPSWrite) | measure avg(IOPSWriteValue_d) by ServerName_s,ClusterName_s | display LineChart",
+                        "Query": "S2D_CL | where MetricLevel_s == 'Node' and MetricName_s == 'IOPSWrite' | summarize avg(MetricValue_d) by ServerName_s, ClusterName_s | render timechart",
                         "yAxis": {
                           "isLogarithmic": false,
                           "units": {
@@ -1270,9 +1274,9 @@
                         "Subtitle": ""
                       },
                       "LineChart": {
-                        "Query": "Type=S2D_CL MetricLevel_s=Node (MetricName_s=IOThroughputTotal) | measure avg(IOThroughputTotalValue_d) by ServerName_s,ClusterName_s | display LineChart",
+                        "Query": "S2D_CL | where MetricLevel_s == 'Node' and MetricName_s == 'IOThroughputTotal' | summarize avg(MetricValue_d) by ServerName_s, ClusterName_s | render timechart",
                         "yAxis": {
-                          "isLogarithmic": false,
+                          "isLogarithmic": true,
                           "units": {
                             "baseUnitType": "BitRate",
                             "baseUnit": "BytesPerSec",
@@ -1288,9 +1292,9 @@
                         "Subtitle": ""
                       },
                       "LineChart": {
-                        "Query": "Type=S2D_CL MetricLevel_s=Node (MetricName_s=IOThroughputRead) | measure avg(IOThroughputReadValue_d) by ServerName_s,ClusterName_s | display LineChart",
+                        "Query": "S2D_CL | where MetricLevel_s == 'Node' and MetricName_s == 'IOThroughputRead' | summarize avg(MetricValue_d) by ServerName_s, ClusterName_s | render timechart",
                         "yAxis": {
-                          "isLogarithmic": false,
+                          "isLogarithmic": true,
                           "units": {
                             "baseUnitType": "BitRate",
                             "baseUnit": "BytesPerSec",
@@ -1306,9 +1310,9 @@
                         "Subtitle": ""
                       },
                       "LineChart": {
-                        "Query": "Type=S2D_CL MetricLevel_s=Node (MetricName_s=IOThroughputWrite) | measure avg(IOThroughputWriteValue_d) by ServerName_s,ClusterName_s | display LineChart",
+                        "Query": "S2D_CL | where MetricLevel_s == 'Node' and MetricName_s == 'IOThroughputWrite' | summarize avg(MetricValue_d) by ServerName_s, ClusterName_s | render timechart",
                         "yAxis": {
-                          "isLogarithmic": false,
+                          "isLogarithmic": true,
                           "units": {
                             "baseUnitType": "BitRate",
                             "baseUnit": "BytesPerSec",
@@ -1337,7 +1341,7 @@
                     "Subtitle": ""
                   },
                   "LineChart": {
-                    "Query": "Type=S2D_CL MetricLevel_s=Volume MetricName_s=IOLatencyAverage | measure avg(mul(IOLatencyAverageValue_d,1000)) by VolumeLabel_s,ClusterName_s | display LineChart",
+                    "Query": "S2D_CL | where MetricLevel_s == 'Volume' and MetricName_s == 'IOLatencyAverage' | summarize avg(MetricValue_d*1000) by VolumeLabel_s, ClusterName_s | render timechart",
                     "yAxis": {
                       "isLogarithmic": false,
                       "units": {
@@ -1349,10 +1353,10 @@
                     }
                   },
                   "List": {
-                    "Query": "Type=S2D_CL MetricLevel_s=Volume MetricName_s=IOLatencyAverage | measure avg(mul(IOLatencyAverageValue_d,1000)) by VolumeLabel_s,ClusterName_s | display LineChart",
+                    "Query": "S2D_CL | where MetricLevel_s == 'Volume' and MetricName_s == 'IOLatencyAverage' | summarize avg(MetricValue_d*1000) by VolumeLabel_s, ClusterName_s | render timechart",
                     "HideGraph": false,
                     "enableSparklines": true,
-                    "operation": "Summary",
+                    "operation": "Last Sample",
                     "ColumnsTitle": {
                       "Name": "Volume",
                       "Value": "IO Latency (ms)"
@@ -1382,7 +1386,7 @@
                       ]
                     },
                     "NameDSVSeparator": "",
-                    "NavigationQuery": "Type=S2D_CL MetricLevel_s=Volume MetricName_s=IOLatencyAverage {selected item} | measure avg(mul(IOLatencyAverageValue_d,1000)) by VolumeLabel_s,ClusterName_s | display LineChart"
+                    "NavigationQuery": "S2D_CL | where MetricLevel_s == 'Volume' and MetricName_s == 'IOLatencyAverage' and {selected item} | summarize avg(MetricValue_d*1000) by VolumeLabel_s, ClusterName_s, bin_at(TimeGenerated, 1h, now() ) | render timechart"
                   }
                 }
               },
@@ -1402,7 +1406,7 @@
                     "Subtitle": ""
                   },
                   "LineChart": {
-                    "Query": "Type=S2D_CL MetricLevel_s=Volume MetricName_s=IOLatencyRead | measure avg(mul(IOLatencyReadValue_d,1000)) by VolumeLabel_s,ClusterName_s | display LineChart",
+                    "Query": "S2D_CL | where MetricLevel_s == 'Volume' and MetricName_s == 'IOLatencyRead' | summarize avg(MetricValue_d*1000) by VolumeLabel_s, ClusterName_s | render timechart",
                     "yAxis": {
                       "isLogarithmic": false,
                       "units": {
@@ -1414,10 +1418,10 @@
                     }
                   },
                   "List": {
-                    "Query": "Type=S2D_CL MetricLevel_s=Volume MetricName_s=IOLatencyRead | measure avg(mul(IOLatencyReadValue_d,1000)) by VolumeLabel_s,ClusterName_s | display LineChart",
+                    "Query": "S2D_CL | where MetricLevel_s == 'Volume' and MetricName_s == 'IOLatencyRead' | summarize avg(MetricValue_d*1000) by VolumeLabel_s, ClusterName_s | render timechart",
                     "HideGraph": false,
                     "enableSparklines": true,
-                    "operation": "Summary",
+                    "operation": "Last Sample",
                     "ColumnsTitle": {
                       "Name": "Volume",
                       "Value": "IO Read Latency (ms)"
@@ -1447,7 +1451,7 @@
                       ]
                     },
                     "NameDSVSeparator": "",
-                    "NavigationQuery": "Type=S2D_CL MetricLevel_s=Volume MetricName_s=IOLatencyRead {selected item} | measure avg(mul(IOLatencyReadValue_d,1000)) by VolumeLabel_s,ClusterName_s | display LineChart"
+                    "NavigationQuery": "S2D_CL | where MetricLevel_s == 'Volume' and MetricName_s == 'IOLatencyRead' and {selected item} | summarize avg(MetricValue_d*1000) by VolumeLabel_s, ClusterName_s, bin_at(TimeGenerated, 1h, now() ) | render timechart"
                   }
                 }
               },
@@ -1467,7 +1471,7 @@
                     "Subtitle": ""
                   },
                   "LineChart": {
-                    "Query": "Type=S2D_CL MetricLevel_s=Volume (MetricName_s=IOLatencyWrite) | measure avg(mul(IOLatencyWriteValue_d,1000)) by VolumeLabel_s,ClusterName_s | display LineChart",
+                    "Query": "S2D_CL | where MetricLevel_s == 'Volume' and MetricName_s == 'IOLatencyWrite' | summarize avg(MetricValue_d*1000) by VolumeLabel_s, ClusterName_s | render timechart",
                     "yAxis": {
                       "isLogarithmic": false,
                       "units": {
@@ -1479,10 +1483,10 @@
                     }
                   },
                   "List": {
-                    "Query": "Type=S2D_CL MetricLevel_s=Volume (MetricName_s=IOLatencyWrite) | measure avg(mul(IOLatencyWriteValue_d,1000)) by VolumeLabel_s,ClusterName_s | display LineChart",
+                    "Query": "S2D_CL | where MetricLevel_s == 'Volume' and MetricName_s == 'IOLatencyWrite' | summarize avg(MetricValue_d*1000) by VolumeLabel_s, ClusterName_s | render timechart",
                     "HideGraph": false,
                     "enableSparklines": true,
-                    "operation": "Summary",
+                    "operation": "Last Sample",
                     "ColumnsTitle": {
                       "Name": "Volume",
                       "Value": "IO Write Latency (ms)"
@@ -1512,7 +1516,7 @@
                       ]
                     },
                     "NameDSVSeparator": "",
-                    "NavigationQuery": "Type=S2D_CL MetricLevel_s=Volume (MetricName_s=IOLatencyWrite) {selected item} | measure avg(mul(IOLatencyWriteValue_d,1000)) by VolumeLabel_s,ClusterName_s | display LineChart"
+                    "NavigationQuery": "S2D_CL | where MetricLevel_s == 'Volume' and MetricName_s == 'IOLatencyWrite' and {selected item} | summarize avg(MetricValue_d*1000) by VolumeLabel_s, ClusterName_s, bin_at(TimeGenerated, 1h, now() ) | render timechart"
                   }
                 }
               },
@@ -1532,7 +1536,7 @@
                         "Subtitle": ""
                       },
                       "LineChart": {
-                        "Query": "Type=S2D_CL MetricLevel_s=Volume (MetricName_s=IOPSTotal) | measure avg(IOPSTotalValue_d) by VolumeLabel_s,ClusterName_s | display LineChart",
+                        "Query": "S2D_CL | where MetricLevel_s == 'Volume' and MetricName_s == 'IOPSTotal' | summarize avg(MetricValue_d) by VolumeLabel_s, ClusterName_s | render timechart",
                         "yAxis": {
                           "isLogarithmic": false,
                           "units": {
@@ -1550,7 +1554,7 @@
                         "Subtitle": ""
                       },
                       "LineChart": {
-                        "Query": "Type=S2D_CL MetricLevel_s=Volume (MetricName_s=IOPSRead) | measure avg(IOPSReadValue_d) by VolumeLabel_s,ClusterName_s | display LineChart",
+                        "Query": "S2D_CL | where MetricLevel_s == 'Volume' and MetricName_s == 'IOPSRead' | summarize avg(MetricValue_d) by VolumeLabel_s, ClusterName_s | render timechart",
                         "yAxis": {
                           "isLogarithmic": false,
                           "units": {
@@ -1568,7 +1572,7 @@
                         "Subtitle": ""
                       },
                       "LineChart": {
-                        "Query": "Type=S2D_CL MetricLevel_s=Volume (MetricName_s=IOPSWrite) | measure avg(IOPSWriteValue_d) by VolumeLabel_s,ClusterName_s | display LineChart",
+                        "Query": "S2D_CL | where MetricLevel_s == 'Volume' and MetricName_s == 'IOPSWrite' | summarize avg(MetricValue_d) by VolumeLabel_s, ClusterName_s | render timechart",
                         "yAxis": {
                           "isLogarithmic": false,
                           "units": {
@@ -1599,9 +1603,9 @@
                         "Subtitle": ""
                       },
                       "LineChart": {
-                        "Query": "Type=S2D_CL MetricLevel_s=Volume (MetricName_s=IOThroughputTotal) | measure avg(IOThroughputTotalValue_d) by VolumeLabel_s,ClusterName_s | display LineChart",
+                        "Query": "S2D_CL | where MetricLevel_s == 'Volume' and MetricName_s == 'IOThroughputTotal' | summarize avg(MetricValue_d) by VolumeLabel_s, ClusterName_s | render timechart",
                         "yAxis": {
-                          "isLogarithmic": false,
+                          "isLogarithmic": true,
                           "units": {
                             "baseUnitType": "BitRate",
                             "baseUnit": "BytesPerSec",
@@ -1617,9 +1621,9 @@
                         "Subtitle": ""
                       },
                       "LineChart": {
-                        "Query": "Type=S2D_CL MetricLevel_s=Volume (MetricName_s=IOThroughputRead) | measure avg(IOThroughputReadValue_d) by VolumeLabel_s,ClusterName_s | display LineChart",
+                        "Query": "S2D_CL | where MetricLevel_s == 'Volume' and MetricName_s == 'IOThroughputRead' | summarize avg(MetricValue_d) by VolumeLabel_s, ClusterName_s | render timechart",
                         "yAxis": {
-                          "isLogarithmic": false,
+                          "isLogarithmic": true,
                           "units": {
                             "baseUnitType": "BitRate",
                             "baseUnit": "BytesPerSec",
@@ -1635,9 +1639,9 @@
                         "Subtitle": ""
                       },
                       "LineChart": {
-                        "Query": "Type=S2D_CL MetricLevel_s=Volume (MetricName_s=IOThroughputWrite) | measure avg(IOThroughputWriteValue_d) by VolumeLabel_s,ClusterName_s | display LineChart",
+                        "Query": "S2D_CL | where MetricLevel_s == 'Volume' and MetricName_s == 'IOThroughputWrite' | summarize avg(MetricValue_d) by VolumeLabel_s, ClusterName_s | render timechart",
                         "yAxis": {
-                          "isLogarithmic": false,
+                          "isLogarithmic": true,
                           "units": {
                             "baseUnitType": "BitRate",
                             "baseUnit": "BytesPerSec",
@@ -1666,7 +1670,7 @@
                     "Subtitle": ""
                   },
                   "Donut": {
-                    "Query": "Type=S2D_CL MetricLevel_s=Volume MetricName_s=CapacityTotal | measure avg(div(CapacityTotalValue_d,1073741824)) by VolumeLabel_s",
+                    "Query": "S2D_CL | where MetricLevel_s == 'Volume' and MetricName_s == 'CapacityTotal' | summarize arg_max(TimeGenerated, *) by VolumeLabel_s, ClusterName_s | summarize round(avg(MetricValue_d/1073741824),2) by VolumeLabel_s, ClusterName_s | project-away ClusterName_s",
                     "CenterLegend": {
                       "Text": "Total (GBs)",
                       "Operation": "Sum",
@@ -1682,7 +1686,7 @@
                     }
                   },
                   "List": {
-                    "Query": "Type=S2D_CL MetricLevel_s=Volume MetricName_s=CapacityTotal | measure avg(div(CapacityTotalValue_d,1073741824)) by VolumeLabel_s,ClusterName_s | display LineChart",
+                    "Query": "S2D_CL | where MetricLevel_s == 'Volume' and MetricName_s == 'CapacityTotal' | summarize round(avg(MetricValue_d/1073741824),2) by VolumeLabel_s, ClusterName_s | project-away ClusterName_s | render timechart",
                     "HideGraph": false,
                     "enableSparklines": true,
                     "operation": "Last Sample",
@@ -1715,7 +1719,7 @@
                       ]
                     },
                     "NameDSVSeparator": "",
-                    "NavigationQuery": "Type=S2D_CL MetricLevel_s=Volume MetricName_s=CapacityTotal {selected item} | measure avg(div(CapacityTotalValue_d,1073741824)) by VolumeLabel_s,ClusterName_s | display LineChart"
+                    "NavigationQuery": "S2D_CL | where MetricLevel_s == 'Volume' and MetricName_s == 'CapacityTotal' and {selected item} | summarize round(avg(MetricValue_d/1073741824),2) by VolumeLabel_s, ClusterName_s, bin_at(TimeGenerated, 1h, now())  | project-away ClusterName_s | render timechart"
                   }
                 }
               },
@@ -1735,7 +1739,7 @@
                     "Subtitle": ""
                   },
                   "LineChart": {
-                    "Query": "Type=S2D_CL MetricLevel_s=Volume MetricName_s=CapacityAvailable | measure avg(div(CapacityAvailableValue_d,1073741824)) by VolumeLabel_s,ClusterName_s | display LineChart",
+                    "Query": "S2D_CL | where MetricLevel_s == 'Volume' and MetricName_s == 'CapacityAvailable' | summarize round(avg(MetricValue_d/1073741824),2) by VolumeLabel_s, ClusterName_s | project-away ClusterName_s | render timechart",
                     "yAxis": {
                       "isLogarithmic": false,
                       "units": {
@@ -1747,7 +1751,7 @@
                     }
                   },
                   "List": {
-                    "Query": "Type=S2D_CL MetricLevel_s=Volume MetricName_s=CapacityAvailable | measure avg(div(CapacityAvailableValue_d,1073741824)) by VolumeLabel_s,ClusterName_s | Sort AggregatedValue ASC",
+                    "Query": "S2D_CL | where MetricLevel_s == 'Volume' and MetricName_s == 'CapacityAvailable' | summarize arg_max(TimeGenerated, *) by VolumeLabel_s, ClusterName_s  | summarize CapacityAvailable = round(avg(MetricValue_d/1073741824),2) by VolumeLabel_s, ClusterName_s | project-away ClusterName_s | sort by CapacityAvailable asc",
                     "HideGraph": false,
                     "enableSparklines": false,
                     "operation": "Last Sample",
@@ -1780,7 +1784,7 @@
                       ]
                     },
                     "NameDSVSeparator": "",
-                    "NavigationQuery": "Type=S2D_CL MetricLevel_s=Volume MetricName_s=CapacityAvailable {selected item} | measure avg(div(CapacityAvailableValue_d,1073741824)) by VolumeLabel_s,ClusterName_s | display LineChart"
+                    "NavigationQuery": "S2D_CL | where MetricLevel_s == 'Volume' and MetricName_s == 'CapacityAvailable' and  {selected item} | summarize round(avg(MetricValue_d/1073741824),2) by VolumeLabel_s, ClusterName_s, bin_at(TimeGenerated, 1h, now() )  | project-away ClusterName_s | render timechart"
                   }
                 }
               }
@@ -1788,10 +1792,10 @@
             "OverviewTile": {
               "Id": "LineChartBuilderTile",
               "Type": "OverviewTile",
-              "Version": 0,
+              "Version": 2,
               "Configuration": {
                 "LineChart": {
-                  "Query": "Type=S2D_CL MetricLevel_s=Cluster MetricName_s=IOPSTotal | measure avg(IOPSTotalValue_d) by ClusterName_s",
+                  "Query": "S2D_CL | where MetricLevel_s == 'Cluster' and MetricName_s == 'IOPSTotal' | summarize avg(MetricValue_d) by ClusterName_s",
                   "yAxis": {
                     "isLogarithmic": false,
                     "units": {
@@ -1805,8 +1809,8 @@
                 "Advanced": {
                   "DataFlowVerification": {
                     "Enabled": true,
-                    "Query": "Type=S2D_CL",
-                    "Message": "S2D Monitoring data is missing in OMS. Please make sure you have installed OMSS2DMon service on S2D nodes and that data is flowing to OMS."
+                    "Query": "S2D_CL | sort by TimeGenerated desc | limit 1",
+                    "Message": "S2D Monitoring data is missing in OMS. Please make sure you have installed s2dmon service on S2D nodes and that data is flowing to OMS."
                   }
                 }
               }
@@ -1819,7 +1823,7 @@
       "name": "[variables('solutionId')]",
       "type": "Microsoft.OperationsManagement/solutions",
       "location": "[parameters('omsLogAnalyticsWorkspaceLocation')]",
-      "apiVersion": "[variables('omsLogAnalyticsWorkspaceApiVersion')]",
+      "apiVersion": "[variables('omsSolutionsApiVersion')]",
       "tags": {},
       "dependsOn": [
         "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.OperationalInsights/workspaces/', parameters('omsLogAnalyticsWorkspaceName'))]",
@@ -1827,6 +1831,7 @@
       ],
       "plan": {
         "name": "[variables('solutionId')]",
+        "Version": "[variables('solutionVersion')]",
         "publisher": "[variables('solutionPublisher')]",
         "promotionCode": "[variables('solutionPromotionCode')]",
         "product": "[variables('solutionProduct')]"
